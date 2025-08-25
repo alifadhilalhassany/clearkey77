@@ -1,54 +1,28 @@
 <?php
-// disable error
-error_reporting(0);
+header('Content-Type: application/json');
 
-// استلم clearkey كامل من GET
-$clearkey = $_GET["clearkey"] ?? '';
+$kid_hex = $_GET['kid'] ?? '3d04975236a44f62857d181597705ee6';
+$key_hex = $_GET['key'] ?? '362133e9cb13189ad4fe095ced216f60';
 
-// validation
-if (empty($clearkey) || strpos($clearkey, ":") === false) {
-    http_response_code(503);
-    header("Content-Type: application/json");
-    $errorjson = array(
-        "Status" => "503",
-        "Content" => "Validation Failed!",
-        "Reason" => "Did not provide ClearKey in format keyid:key"
-    );
-    echo json_encode($errorjson);
+function hexToBase64Url($hex) {
+    $bin = hex2bin($hex);
+    $b64 = base64_encode($bin);
+    $b64url = strtr(rtrim($b64, '='), '+/', '-_');
+    return $b64url;
+}
+
+if (strlen($kid_hex) !== 32 || strlen($key_hex) !== 32) {
+    http_response_code(400);
+    echo json_encode(['error' => 'Invalid KID or KEY']);
     exit;
 }
 
-// نفصل الـ keyid والـ key
-list($hex, $hex2) = explode(":", $clearkey);
+$kid_b64 = hexToBase64Url($kid_hex);
+$key_b64 = hexToBase64Url($key_hex);
 
-// تحويل Key ID لـ Base64
-$bin = hex2bin($hex);
-$finalkeyid64 = str_replace('=', '', base64_encode($bin));
-
-// تحويل Key لـ Base64
-$bin2 = hex2bin($hex2);
-$finalkey64 = str_replace('=', '', base64_encode($bin2));
-
-// validation إضافي
-if (empty($finalkeyid64) || empty($finalkey64)){
-    http_response_code(503);
-    header("Content-Type: application/json");
-    $errorjson = array(
-        "Status" => "503",
-        "Content" => "Validation Failed!",
-        "Reason" => "Key ID or Key isn't complete"
-    );
-    echo json_encode($errorjson);
-    exit;
-}
-
-// create JSON for keys
-$keys[] = array("kty" => "oct", "k" => $finalkey64, "kid" => $finalkeyid64);
-
-// encode JSON
-$license = array("keys" => $keys, "type" => "temporary");
-
-// output JSON
-header("Content-Type: application/json");
-echo json_encode($license);
-?>
+echo json_encode([
+    'keys' => [
+        ['kty'=>'oct','kid'=>$kid_b64,'k'=>$key_b64]
+    ],
+    'type'=>'temporary'
+]);
